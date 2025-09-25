@@ -11,7 +11,8 @@ const GameState = {
     anomalies: [],
     cells: [],
     staff: [],
-    lastUpdate: Date.now()
+    lastUpdate: Date.now(),
+    cellIdCounter: 0
 };
 
 // The main game loop function
@@ -24,6 +25,43 @@ function gameLoop() {
 
     GameState.lastUpdate = now;
     requestAnimationFrame(gameLoop); // This keeps the loop going
+}
+
+// Cell Functions
+function buyNewCell() {
+    const cellCost = 5000; // We can make this dynamic later
+    
+    // 1. Check if the player can afford it
+    if (GameState.resources.budget >= cellCost) {
+        // 2. Deduct the cost
+        GameState.resources.budget -= cellCost;
+
+        // 3. Create a new cell instance and add it to our game state
+        const newId = GameState.cellIdCounter++;
+        const newCell = new Cell(newId);
+        GameState.cells.push(newCell);
+
+        // 4. Create the visual element for the cell on the screen
+        renderNewCell(newCell);
+
+        console.log(`Built Cell #${newId}. Remaining Budget: ${GameState.resources.budget}`);
+    } else {
+        console.log("Not enough budget to build a new cell.");
+        // We can add a visual notification for the player here later
+    }
+}
+
+function renderNewCell(cell) {
+    const facilityView = document.getElementById('facility-view');
+    const cellElement = document.createElement('div');
+    cellElement.classList.add('containment-cell');
+    cellElement.dataset.cellId = cell.id; // Link the element to our object's ID
+    cellElement.textContent = `Cell #${cell.id}`;
+
+    // Store the element reference in our object
+    cell.element = cellElement;
+
+    facilityView.appendChild(cellElement);
 }
 
 // Update game logic
@@ -47,6 +85,8 @@ function render() {
 function init() {
     console.log("Initializing Department of Otherworldly Affairs...");
     
+    const buildCellButton = document.getElementById('build-cell-btn');
+    buildCellButton.addEventListener('click', buyNewCell); 
     // Start the game loop
     requestAnimationFrame(gameLoop);
 }
