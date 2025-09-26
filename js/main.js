@@ -77,14 +77,14 @@ function render() {
     // For now, let's just display the red tape.
     const resourceBar = document.getElementById('resource-bar');
     if (resourceBar) {
-        resourceBar.textContent = `Red Tape: ${Math.floor(GameState.resources.redTape)}`;
+        resourceBar.textContent = `Red Tape: ${Math.floor(GameState.resources.redTape)} ---- Budget: $${Math.floor(GameState.resources.budget)}  ---- Sanity: ${Math.floor(GameState.resources.sanity)} ---- Ectoplasm: ${Math.floor(GameState.resources.ectoplasm)}`;
     }
 }
 
 // Initialization function that runs when the page loads
 function init() {
     console.log("Initializing Department of Otherworldly Affairs...");
-    
+
     const buildCellButton = document.getElementById('build-cell-btn');
     buildCellButton.addEventListener('click', buyNewCell); 
     // Start the game loop
