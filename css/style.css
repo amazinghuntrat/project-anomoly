@@ -65,6 +65,21 @@ body {
     background-color: #34495e;
 }
 
+#contain-anomaly-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: var(--font-main);
+    background-color: #2c3e50;
+    color: var(--header-text-color);
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#contain-anomaly-btn:hover {
+    background-color: #34495e;
+}
+
 /* Styling for the cells in the facility view */
 #facility-view {
     display: flex;
@@ -89,4 +104,9 @@ body {
 .containment-cell:hover {
     background-color: #dcdcdc;
     border-color: #333333;
+}
+
+.containment-cell.selected {
+    background-color: #d1e3ff; /* A light blue to show selection */
+    border: 2px solid #007bff; /* A nice, strong blue border */
 }

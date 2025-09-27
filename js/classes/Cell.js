@@ -12,4 +12,14 @@ class Cell {
     isOccupied() {
         return this.anomaly !== null;
     }
+    
+    contain(anomaly) {
+        if (!this.isOccupied()) {
+            this.anomaly = anomaly;
+            console.log(`${anomaly.name} has been contained in Cell #${this.id}.`);
+            return true;
+        }
+        console.warn(`Attempted to contain anomaly in occupied Cell #${this.id}.`);
+        return false;
+    }
 }
