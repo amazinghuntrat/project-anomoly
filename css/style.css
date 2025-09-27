@@ -110,3 +110,200 @@ body {
     background-color: #d1e3ff; /* A light blue to show selection */
     border: 2px solid #007bff; /* A nice, strong blue border */
 }
+
+/* Styling for hire/assign buttons */
+#hire-researcher-btn, #assign-researcher-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: var(--font-main);
+    background-color: #16a085; /* A nice teal for R&D actions */
+    color: var(--header-text-color);
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#hire-researcher-btn:hover, #assign-researcher-btn:hover {
+    background-color: #1abc9c;
+}
+
+/* Styling for the staff info display */
+#staff-pool {
+    font-weight: bold;
+    text-align: center;
+    padding: 8px;
+    margin-top: 5px;
+    background-color: #ecf0f1;
+    border: 1px solid var(--border-color);
+}
+
+/* Styling for the research progress bar (for our next step!) */
+.research-progress-bar {
+    width: 100%;
+    height: 10px;
+    background-color: #ecf0f1;
+    border: 1px solid var(--border-color);
+    margin-top: 5px;
+}
+
+.research-progress-fill {
+    width: 0%; /* Will be updated by JS */
+    height: 100%;
+    background-color: #3498db; /* A blue for progress */
+    transition: width 0.5s ease-in-out;
+}
+
+/* Resource Bar Styling */
+#resource-bar {
+    display: flex; /* This is the key to aligning items in a row */
+    justify-content: center;
+    align-items: center;
+    padding: 5px 0;
+    background-color: #1f2c3a; /* A darker shade for contrast */
+}
+
+.resource-item {
+    padding: 5px 15px;
+    margin: 0 10px;
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--header-text-color);
+    border-right: 2px solid #2c3e50; /* Dividers between items */
+    min-width: 150px; /* Ensures items don't jump around too much */
+}
+
+.resource-item:last-child {
+    border-right: none; /* Remove the divider on the last item */
+}
+
+/* Styling for the button container */
+.button-group {
+    display: flex;
+    gap: 5px; /* Adds a small space between buttons */
+    margin: 5px 0;
+}
+
+.button-group button {
+    flex: 1; /* Makes both buttons share the space equally */
+    margin-top: 0 !important; /* Overrides previous margin */
+}
+
+/* Specific styling for the unassign button */
+#unassign-researcher-btn {
+    background-color: #c0392b; /* A cautionary red/orange */
+}
+
+#unassign-researcher-btn:hover {
+    background-color: #e74c3c;
+}
+
+/* Styling for the completed research notice */
+.research-complete-notice {
+    width: 100%;
+    padding: 8px 0;
+    text-align: center;
+    background-color: #7f8c8d; /* A neutral grey */
+    color: white;
+    font-weight: bold;
+    margin-top: 5px;
+}
+/* Styling for the new build buttons */
+.build-module-btn {
+    margin-left: 10px;
+    font-family: var(--font-main);
+    background-color: #2980b9; /* A construction blue */
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 3px 6px;
+}
+
+.build-module-btn:hover {
+    background-color: #3498db;
+}
+
+/* Styling for the [INSTALLED] status text */
+.status-installed {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+/* Final styling for a fully contained cell */
+.containment-cell.contained {
+    background-color: #d4edda; /* A calm green */
+    border: 2px solid #27ae60; /* A secure green border */
+}
+
+/* Styling for the monthly timer */
+#month-timer-display {
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px;
+    background-color: #ecf0f1;
+    border: 1px solid var(--border-color);
+    margin-bottom: 15px;
+}
+
+/* Wrapper for the cell and its threat bar */
+.cell-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+}
+
+/* We remove the margin from the cell itself now */
+.containment-cell {
+    margin: 0;
+    width: 100px;
+    height: 100px;
+    /* ... keep all other existing styles ... */
+}
+
+/* Styling for the threat bar container */
+.threat-bar {
+    width: 100px;
+    height: 10px;
+    background-color: #333; /* Dark background */
+    border: 1px solid #555;
+    margin-top: 3px;
+    box-sizing: border-box; /* Ensures border is included in the width/height */
+}
+
+/* Styling for the red fill of the threat bar */
+.threat-fill {
+    width: 0%; /* Starts at 0 */
+    height: 100%;
+    background-color: #e74c3c; /* A dangerous red */
+    transition: width 0.5s linear; /* Smooth transition */
+}
+
+/* Styling for a breached cell */
+.containment-cell.breached {
+    border-color: #e74c3c;
+    animation: breach-flash 0.8s infinite; /* Flashing animation */
+}
+
+/* The animation keyframes */
+@keyframes breach-flash {
+    0% { background-color: #f5c6cb; } /* Light red */
+    50% { background-color: #e74c3c; } /* Dark red */
+    100% { background-color: #f5c6cb; }
+}
+#recontain-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: var(--font-main);
+    background-color: #e74c3c;
+    color: white;
+    border: 2px solid #c0392b;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* Danger Level Text Styling */
+.danger-safe { color: #27ae60; font-weight: bold; } /* Green */
+.danger-euclid { color: #f39c12; font-weight: bold; } /* Yellow */
+.danger-keter { color: #e74c3c; font-weight: bold; } /* Red */
+

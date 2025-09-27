@@ -11,7 +11,11 @@
     <header id="game-header">
         <h1>Department of Otherworldly Affairs</h1>
         <div id="resource-bar">
-            </div>
+            <div id="res-budget" class="resource-item"></div>
+            <div id="res-tape" class="resource-item"></div>
+            <div id="res-sanity" class="resource-item"></div>
+            <div id="res-ecto" class="resource-item"></div>
+        </div>
     </header>
 
     <main id="game-container">
@@ -20,15 +24,19 @@
         </div>
 
         <aside id="ui-panel">
+            <div id="month-timer-display"></div>
             <div id="controls">
                 <button id="build-cell-btn">Build Containment Cell ($5000)</button>
-                <button id="contain-anomaly-btn" style="margin-top: 5px;">Contain Anomaly</button>
+                <button id="hire-researcher-btn" style="margin-top: 5px;">Hire Researcher ($1000)</button>
+                    <div id="staff-pool">
+                    </div>
+                <button id="contain-anomaly-btn" style="margin-top: 10px;">Contain Anomaly (Test)</button>
             </div>
-            <hr>
-            <h3>Selection Details</h3>
-            <div id="selection-content">
-                <p>Select an object in the facility...</p>
-            </div>
+                <hr>
+                <h3>Selection Details</h3>
+                <div id="selection-content">
+                    <p>Select an object in the facility...</p>
+                </div>
         </aside>
     </main>
     

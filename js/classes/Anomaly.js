@@ -1,5 +1,5 @@
 class Anomaly {
-    constructor({ id, name, form, description, protocol }) {
+    constructor({ id, name, form, dangerLevel, description, protocol }) {
         this.id = id;
         this.name = name;
         this.form = form;
@@ -10,24 +10,14 @@ class Anomaly {
         // `revealed` tracks which ones the player knows.
         this.protocol = {
             requirements: protocol,
-            revealed: [] // Starts empty; research will fill this.
+            revealed: [] // Starts empty; research will fill this.\
+            
         };
+        this.researchComplete = false;
+        this.dangerLevel = dangerLevel || 'Euclid'; // Defaults to Euclid if not Present
+
     }
 
     // A helper method to get the protocol text for the UI
-    getProtocolForDisplay() {
-        let displayText = "<ul>";
-        for (const req of this.protocol.requirements) {
-            // For now, we'll just reveal the first requirement by default
-            const isRevealed = this.protocol.revealed.includes(req) || this.protocol.requirements.indexOf(req) === 0;
-            
-            if (isRevealed) {
-                displayText += `<li>- ${req}</li>`;
-            } else {
-                displayText += `<li>- [REDACTED]</li>`;
-            }
-        }
-        displayText += "</ul>";
-        return displayText;
-    }
+    
 }
