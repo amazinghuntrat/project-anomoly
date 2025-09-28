@@ -1,5 +1,5 @@
 class Anomaly {
-    constructor({ id, name, form, dangerLevel, description, protocol }) {
+    constructor({ id, name, form, dangerLevel, description, protocol, behaviors }) {
         this.id = id;
         this.name = name;
         this.form = form;
@@ -15,7 +15,8 @@ class Anomaly {
         };
         this.researchComplete = false;
         this.dangerLevel = dangerLevel || 'Euclid'; // Defaults to Euclid if not Present
-
+        this.sanityBonusAwarded = false;
+        this.behaviors = behaviors || [];
     }
 
     // A helper method to get the protocol text for the UI

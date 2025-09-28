@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Anomaly - Department of Otherworldly Affairs</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
     <header id="game-header">
+        <div id="facility-status-banner">STATUS: NOMINAL</div>
         <h1>Department of Otherworldly Affairs</h1>
         <div id="resource-bar">
             <div id="res-budget" class="resource-item"></div>
@@ -16,8 +19,19 @@
             <div id="res-sanity" class="resource-item"></div>
             <div id="res-ecto" class="resource-item"></div>
         </div>
+        
+        
     </header>
+    <div id="tech-tree-panel" class="hidden">
+        <div id="tech-tree-content">
+            <h2>Research & Development</h2>
+            <div id="tech-tree-grid">
+            </div>
+            <button id="close-tech-tree-btn">Close</button>
+        </div>
+    </div>
 
+    <div id="notification" class="hidden"></div>
     <main id="game-container">
         <div id="facility-view">
             <h2>Containment Wing</h2>
@@ -26,23 +40,25 @@
         <aside id="ui-panel">
             <div id="month-timer-display"></div>
             <div id="controls">
+                <button id="open-tech-tree-btn">R&D Tech Tree</button>
                 <button id="build-cell-btn">Build Containment Cell ($5000)</button>
                 <button id="hire-researcher-btn" style="margin-top: 5px;">Hire Researcher ($1000)</button>
-                    <div id="staff-pool">
-                    </div>
+                <div id="staff-pool">
+                </div>
                 <button id="contain-anomaly-btn" style="margin-top: 10px;">Contain Anomaly (Test)</button>
             </div>
-                <hr>
-                <h3>Selection Details</h3>
-                <div id="selection-content">
-                    <p>Select an object in the facility...</p>
-                </div>
+            <hr>
+            <h3>Selection Details</h3>
+            <div id="selection-content">
+                <p>Select an object in the facility...</p>
+            </div>
         </aside>
     </main>
-    
+
     <script src="js/classes/Anomaly.js"></script>
     <script src="js/classes/Cell.js"></script>
     <script src="js/classes/Staff.js"></script>
     <script src="js/main.js"></script>
 </body>
+
 </html>
