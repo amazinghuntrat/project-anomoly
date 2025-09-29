@@ -1,33 +1,31 @@
 // This is the main entry point for our game's logic.
 
+
+
 // A global object to hold the game's state
+// --- GLOBAL GAME STATE ---
 const GameState = {
-    resources: {
-        redTape: 0,
-        budget: 10000,
-        sanity: 100,
-        ectoplasm: 0
-    },
-    anomalies: [],
-    cells: [],
+    resources: { redTape: 0, budget: 10000, sanity: 100, ectoplasm: 0 },
     staff: [],
     lastUpdate: Date.now(),
     cellIdCounter: 0,
     selectedCellId: null,
+    selectedWingId: null,
     staffIdCounter: 0,
     monthDuration: 60,
     monthTimer: 60,
     uncontainedAnomalies: ['AM-001', 'AM-002', 'AM-003', 'AM-004', 'AM-005', 'AM-006', 'AM-007', 'AM-008', 'AM-009', 'AM-010'],
-    facilityStatus: 'NOMINAL', // Can be NOMINAL, ALERT, or LOCKDOWN
-    activeBreaches: 0,       // A counter for simultaneous breaches
-    eventInterval: 90, // An event happens every 90 seconds
+    facilityStatus: 'NOMINAL',
+    activeBreaches: 0,
+    eventInterval: 90,
     eventTimer: 90,
-
-
-    unlockedTechs: [], // An array of tech IDs that have been researched
-    unlockedStaff: ['Researcher'], // Start with Researchers unlocked
-    unlockedModules: ['Soundproofed Walls', 'Remote Viewing Only', 'Constant Illumination', /* etc... add all your basic modules */],
+    unlockedTechs: [],
+    unlockedStaff: ['Researcher'],
+    unlockedModules: ['Soundproofed Walls', 'Remote Viewing Only', 'Constant Illumination', 'Reinforced Walls'], wings: [{ id: 0, type: 'Containment', cells: [], subBuildings: [] }],
+    wingIdCounter: 1,
 };
+const Debug = { addMoney: (amount) => { GameState.resources.budget += amount; console.log(`Added $${amount}. New Budget: $${GameState.resources.budget}`) }, addEcto: (amount) => { GameState.resources.ectoplasm += amount; console.log(`Added ${amount} Ectoplasm. New Total: ${GameState.resources.ectoplasm}`) }, setSanity: (value) => { GameState.resources.sanity = value; console.log(`Sanity set to ${value}.`) }, triggerBreach: (cellId) => { const cell = findCellById(cellId); if (cell && cell.isOccupied()) { triggerContainmentBreach(cell); console.log(`Forcing breach on Cell #${cellId}.`) } else { console.error(`Cell #${cellId} not found or is empty.`) } }, finishResearch: (cellId) => { const cell = findCellById(cellId); if (cell && cell.isOccupied()) { cell.anomaly.researchComplete = true; renderSelectionPanel(); console.log(`Research for anomaly in Cell #${cellId} completed.`) } else { console.error(`Cell #${cellId} not found or is empty.`) } }, fastForward: (seconds) => { GameState.monthTimer -= seconds; console.log(`Advanced time by ${seconds} seconds.`) }, triggerEvent: (eventName) => { const event = EVENT_DATABASE.find(e => e.name === eventName); if (event) { event.effect(); showNotification(event.name, event.description); console.log(`Triggered event: ${eventName}`) } else { console.error(`Event "${eventName}" not found.`) } }, unlockTech: (techId) => { const tech = TECH_TREE_DATABASE[techId]; if (tech && !GameState.unlockedTechs.includes(techId)) { GameState.unlockedTechs.push(techId); tech.effect(); console.log(`Unlocked Tech: ${tech.name}`) } else { console.error(`Tech "${techId}" not found or already unlocked.`) } }, help: () => { console.log(`--- Debug Commands ---\nDebug.addMoney(amount)\nDebug.addEcto(amount)\nDebug.setSanity(value)\nDebug.triggerBreach(cellId)\nDebug.finishResearch(cellId)\nDebug.fastForward(seconds)\nDebug.triggerEvent("Event Name")\nDebug.unlockTech('techId')`) } };
+
 
 const ANOMALY_DATABASE = {
     'AM-001': {
@@ -152,9 +150,12 @@ const EVENT_DATABASE = [
     { name: "Unexpected Grant", description: "The finance department approved a surprise grant. Budget +$10,000.", effect: () => { GameState.resources.budget += 10000; } },
     {
         name: "Power Fluctuation", description: "A power surge destabilizes a random cell. Threat +25.", effect: () => {
-            if (GameState.cells.length > 0) {
-                const randomCell = GameState.cells[Math.floor(Math.random() * GameState.cells.length)];
+            // CORRECTED: Find all cells from all wings first
+            const allCells = GameState.wings.flatMap(wing => wing.cells);
+            if (allCells.length > 0) {
+                const randomCell = allCells[Math.floor(Math.random() * allCells.length)];
                 randomCell.threatLevel += 25;
+                showNotification("Power Surge", `An energy spike has increased threat in Cell #${randomCell.id}.`);
             }
         }
     },
@@ -162,35 +163,30 @@ const EVENT_DATABASE = [
 ];
 
 const TECH_TREE_DATABASE = {
-    't1_psych': {
-        name: 'Advanced Psychiatry',
-        description: 'Unlocks the Therapist staff role, crucial for managing facility-wide Sanity.',
-        cost: 25,
-        prerequisites: [],
-        effect: () => {
-            // This will unlock the ability to hire Therapists
-            GameState.unlockedStaff.push('Therapist');
-        }
+    "Personnel Management": {
+        't1_bureaucracy': { name: 'Bureaucratic Efficiency', description: 'Unlocks the Clerk staff role.', cost: 20, prerequisites: [], effect: () => { GameState.unlockedStaff.push('Clerk'); } },
+        't1_psych': { name: 'Advanced Psychiatry', description: 'Unlocks the Therapist staff role.', cost: 25, prerequisites: [], effect: () => { GameState.unlockedStaff.push('Therapist'); } },
+        't1_security': { name: 'Site Security Protocols', description: 'Unlocks the Security Guard role.', cost: 40, prerequisites: [], effect: () => { GameState.unlockedStaff.push('Security Guard'); } },
     },
-    't1_memetics': {
-        name: 'Applied Memetics',
-        description: 'Unlocks the Mnemonic Dampener module for construction.',
-        cost: 30,
-        prerequisites: [],
-        effect: () => {
-            GameState.unlockedModules.push('Mnemonic Dampener');
-        }
+    "Containment Solutions": {
+        't1_materials': { name: 'Advanced Materials', description: 'Unlocks Lead-Lined Walls for construction.', cost: 20, prerequisites: [], effect: () => { GameState.unlockedModules.push('Lead-Lined Walls'); }},
+        't1_hvac': { name: 'HVAC Engineering', description: 'Unlocks Humidity Regulators and Vacuum Pumps.', cost: 25, prerequisites: [], effect: () => { GameState.unlockedModules.push('Humidity Regulators', 'Vacuum Pump'); }},
+        't2_logistics': { name: 'Automated Systems', description: 'Unlocks the Automated Sterilization System.', cost: 40, prerequisites: ['t1_bureaucracy'], effect: () => { GameState.unlockedModules.push('Automated Sterilization System'); }},
+        't2_cryonics': { name: 'Cryo-Containment', description: 'Unlocks the Cryo Unit and Thermal Generators.', cost: 50, prerequisites: ['t1_hvac'], effect: () => { GameState.unlockedModules.push('Cryo Unit', 'Thermal Generators'); }},
     },
-    't2_temporal': {
-        name: 'Temporal Mechanics',
-        description: 'Unlocks the powerful Scranton Reality Anchor, capable of stabilizing reality.',
-        cost: 100,
-        prerequisites: ['t1_memetics'], // Requires Applied Memetics to be researched first
-        effect: () => {
-            GameState.unlockedModules.push('Scranton Reality Anchor');
-        }
+    "Advanced & Esoteric Research": {
+        't1_memetics': { name: 'Applied Memetics', description: 'Unlocks the Mnemonic Dampener module.', cost: 30, prerequisites: [], effect: () => { GameState.unlockedModules.push('Mnemonic Dampener'); }},
+        't2_temporal': { name: 'Temporal Mechanics', description: 'Unlocks the Scranton Reality Anchor.', cost: 100, prerequisites: ['t1_memetics'], effect: () => { GameState.unlockedModules.push('Scranton Reality Anchor'); }},
+        't3_em_shielding': { name: 'EM Shielding', description: 'Unlocks the Faraday Cage.', cost: 80, prerequisites: ['t2_logistics'], effect: () => { GameState.unlockedModules.push('Faraday Cage'); }},
+        't3_sensory': { name: 'Sensory Synthesis', description: 'Unlocks advanced sensory modules.', cost: 75, prerequisites: ['t2_cryonics'], effect: () => { GameState.unlockedModules.push('Olfactory Emitter', 'White Noise Generator', 'Sensory Deprivation Chamber'); }},
     }
-    // We can add many more techs here
+};
+
+const WING_DATABASE = {
+    'Containment': { name: 'Containment Wing', subBuildingType: null },
+    'Medical': { name: 'Medical Wing', subBuildingType: 'Office', capacityPerBuilding: 2, staffType: 'Therapist' },
+    'Security': { name: 'Security Wing', subBuildingType: 'Locker', capacityPerBuilding: 5, staffType: 'Security Guard' },
+    'Administration': { name: 'Admin Wing', subBuildingType: 'Desk', capacityPerBuilding: 5, staffType: 'Clerk' }
 };
 
 // The main game loop function
@@ -239,47 +235,75 @@ function renderTechTree() {
     const grid = document.getElementById('tech-tree-grid');
     grid.innerHTML = ''; // Clear the old content
 
-    for (const techId in TECH_TREE_DATABASE) {
-        const tech = TECH_TREE_DATABASE[techId];
-        const techElement = document.createElement('div');
-        techElement.classList.add('tech-node');
+    // Loop through each CATEGORY in the database
+    for (const categoryName in TECH_TREE_DATABASE) {
+        const categoryHeader = document.createElement('h3');
+        categoryHeader.classList.add('tech-category-header');
+        categoryHeader.textContent = categoryName;
+        grid.appendChild(categoryHeader);
 
-        const isResearched = GameState.unlockedTechs.includes(techId);
-        const canResearch = tech.prerequisites.every(p => GameState.unlockedTechs.includes(p));
+        const categoryTechs = TECH_TREE_DATABASE[categoryName];
+        // Loop through each TECH inside the category
+        for (const techId in categoryTechs) {
+            const tech = categoryTechs[techId];
+            const techElement = document.createElement('div');
+            techElement.classList.add('tech-node');
 
-        let buttonHTML = '';
-        if (isResearched) {
-            techElement.classList.add('researched');
-            buttonHTML = '<p class="status-installed">[RESEARCHED]</p>';
-        } else if (canResearch) {
-            buttonHTML = `<button class="purchase-tech-btn" data-tech-id="${techId}">Research (${tech.cost} 👻)</button>`;
-        } else {
-            techElement.classList.add('locked');
-            buttonHTML = `<p>Requires: ${tech.prerequisites.join(', ')}</p>`;
+            const isResearched = GameState.unlockedTechs.includes(techId);
+            const canResearch = tech.prerequisites.every(p => GameState.unlockedTechs.includes(p));
+
+            let buttonHTML = '';
+            if (isResearched) {
+                techElement.classList.add('researched');
+                buttonHTML = '<p class="status-installed">[RESEARCHED]</p>';
+            } else if (canResearch) {
+                buttonHTML = `<button class="purchase-tech-btn" data-tech-id="${techId}">Research (${tech.cost} 👻)</button>`;
+            } else {
+                techElement.classList.add('locked');
+                const prereqNames = tech.prerequisites.map(pId => {
+                    // Find the tech name from its ID for a more readable message
+                    for(const cat in TECH_TREE_DATABASE) {
+                        if(TECH_TREE_DATABASE[cat][pId]) return TECH_TREE_DATABASE[cat][pId].name;
+                    }
+                }).join(', ');
+                buttonHTML = `<p>Requires: ${prereqNames}</p>`;
+            }
+
+            techElement.innerHTML = `
+                <h4>${tech.name}</h4>
+                <p>${tech.description}</p>
+                ${buttonHTML}
+            `;
+            grid.appendChild(techElement);
         }
-
-        techElement.innerHTML = `
-            <h4>${tech.name}</h4>
-            <p>${tech.description}</p>
-            ${buttonHTML}
-        `;
-        grid.appendChild(techElement);
     }
 }
-
+function findTechById(techId) {
+    for (const category in TECH_TREE_DATABASE) {
+        if (TECH_TREE_DATABASE[category][techId]) {
+            return TECH_TREE_DATABASE[category][techId];
+        }
+    }
+    return null;
+}
 function purchaseTech(techId) {
-    const tech = TECH_TREE_DATABASE[techId];
-    if (!tech) return;
+    const tech = findTechById(techId); // <-- CORRECTED: Use the new helper function
+    if (!tech) {
+        console.error(`Could not find tech with ID: ${techId}`);
+        return;
+    }
 
     if (GameState.resources.ectoplasm >= tech.cost) {
         GameState.resources.ectoplasm -= tech.cost;
         GameState.unlockedTechs.push(techId);
-        tech.effect(); // Apply the permanent effect!
+        tech.effect();
 
         console.log(`Researched: ${tech.name}`);
-        renderTechTree(); // Re-render to show the new state
+        renderTechTree();
+        closeTechTree();    
     } else {
-        console.log("Not enough Ectoplasm to research this technology.");
+        showNotification("Insufficient Ectoplasm", "Cannot research this technology yet.");
+        closeTechTree();    
     }
 }
 
@@ -289,7 +313,7 @@ function buildModule(moduleName) {
     const selectedId = GameState.selectedCellId;
     if (selectedId === null) return;
 
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
     const moduleData = MODULE_DATABASE[moduleName];
 
     if (!cell || !moduleData) return;
@@ -338,17 +362,16 @@ function hireResearcher() {
 }
 
 function renderStaffPool() {
-    const staffPoolDiv = document.getElementById('staff-pool');
-    const availableResearchers = GameState.staff.filter(s => s.role === 'Researcher' && !s.isAssigned);
-
-    staffPoolDiv.innerHTML = `Available Researchers: ${availableResearchers.length}`;
+    const staffPool = document.getElementById('staff-pool');
+    const availableStaff = GameState.staff.filter(s => !s.isAssigned);
+    staffPool.innerHTML = `Available Staff: ${availableStaff.length}`;
 }
 
 function assignResearcher() {
     const selectedId = GameState.selectedCellId;
     if (selectedId === null) return;
 
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
     if (!cell || !cell.isOccupied()) {
         console.log("Can only assign researchers to occupied cells.");
         return;
@@ -375,7 +398,7 @@ function unassignResearcher() {
     const selectedId = GameState.selectedCellId;
     if (selectedId === null) return;
 
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
 
     // Check if there's actually anyone to unassign
     if (cell && cell.assignedStaff.length > 0) {
@@ -395,6 +418,107 @@ function unassignResearcher() {
     }
 }
 
+function makeDiscovery(cell) {
+    const anomaly = cell.anomaly;
+
+    // Find a requirement that is NOT yet revealed
+    const unrevealedReq = anomaly.protocol.requirements.find(
+        req => !anomaly.protocol.revealed.includes(req)
+    );
+
+    if (unrevealedReq) {
+        // Add it to the revealed list
+        anomaly.protocol.revealed.push(unrevealedReq);
+        console.log(`DISCOVERY in Cell #${cell.id}! New protocol revealed: ${unrevealedReq}`);
+
+        // If the current cell is selected, refresh the panel to show the new info
+        if (cell.id === GameState.selectedCellId) {
+            renderSelectionPanel();
+        }
+    } else {
+        console.log(`All protocols for ${anomaly.name} have been discovered.`);
+        anomaly.researchComplete = true; // <-- ADD THIS LINE
+        // Refresh the panel to show the "completed" state
+        if (cell.id === GameState.selectedCellId) {
+            renderSelectionPanel();
+        }
+    }
+}
+
+function openStaffPanel() {
+    renderStaffPanel();
+    document.getElementById('staff-panel').classList.remove('hidden');
+}
+
+function closeStaffPanel() {
+    document.getElementById('staff-panel').classList.add('hidden');
+}
+
+function renderStaffPanel() {
+    const staffList = document.getElementById('staff-list');
+    staffList.innerHTML = '';
+    for (const role of GameState.unlockedStaff) {
+        const staffCount = GameState.staff.filter(s => s.role === role).length;
+        const roleElement = document.createElement('div');
+        roleElement.classList.add('staff-role');
+        let capacityInfo = '';
+        let hireButton = `<button class="hire-staff-btn" data-role="${role}">Hire ($1000)</button>`;
+
+        const wingSpec = Object.values(WING_DATABASE).find(w => w.staffType === role);
+        if (wingSpec) {
+            const capacity = GameState.wings
+                .filter(w => w.type === wingSpec.name.split(' ')[0])
+                .reduce((total, wing) => total + (wing.subBuildings.length * wingSpec.capacityPerBuilding), 0);
+
+            capacityInfo = ` | Capacity: ${staffCount}/${capacity}`;
+            if (staffCount >= capacity) hireButton = `<button disabled>Requires More ${wingSpec.subBuildingType}s</button>`;
+        }
+        roleElement.innerHTML = `<div><h4>${role}</h4><p>Count: ${staffCount}${capacityInfo} | Salary: $200/month</p></div>${hireButton}`;
+        staffList.appendChild(roleElement);
+    }
+}
+
+function hireStaff(role) {
+    const staffCost = 1000;
+    if (GameState.resources.budget >= staffCost) {
+        GameState.resources.budget -= staffCost;
+        const newId = GameState.staffIdCounter++;
+        const newStaffMember = new Staff(newId, role);
+        GameState.staff.push(newStaffMember);
+        renderStaffPanel(); // Re-render the panel to update the count
+        renderStaffPool(); // Update the staff pool as well
+        showNotification("Staff Hired", `Successfully hired a new ${role}.`);
+        closeStaffPanel();
+    } else {
+        showNotification("Insufficient Funds", `Cannot afford to hire a new ${role}.`);
+        closeStaffPanel();
+    }
+}
+
+function assignStaffToCell(cell, role) {
+    const staffMember = GameState.staff.find(s => s.role === role && !s.isAssigned);
+    if (!staffMember) {
+        showNotification("Assignment Failed", `No available ${role} to assign.`);
+        return;
+    }
+    staffMember.isAssigned = true;
+    staffMember.assignment = `Cell ${cell.id}`;
+    cell.assignedStaff.push(staffMember);
+    console.log(`Assigned ${role} #${staffMember.id} to Cell #${cell.id}`);
+    renderStaffPool();
+    renderSelectionPanel();
+}
+function unassignStaffFromCell(cell, role) {
+    const staffIndex = cell.assignedStaff.findIndex(s => s.role === role);
+    if (staffIndex > -1) {
+        const [staffMember] = cell.assignedStaff.splice(staffIndex, 1);
+        staffMember.isAssigned = false;
+        staffMember.assignment = null;
+        console.log(`Unassigned ${role} #${staffMember.id} from Cell #${cell.id}`);
+        renderStaffPool();
+        renderSelectionPanel();
+    }
+}
 // Anomaly Functions
 /* function containAnomaly() {
     const selectedId = GameState.selectedCellId;
@@ -403,7 +527,7 @@ function unassignResearcher() {
         return; // Exit if no cell is selected
     }
 
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
 
     if (cell.isOccupied()) {
         console.warn(`Cell #${cell.id} is already occupied.`);
@@ -430,7 +554,7 @@ function unassignResearcher() {
 function containAnomaly() {
     const selectedId = GameState.selectedCellId;
     if (selectedId === null) { console.warn("No cell selected."); return; }
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
     if (cell.isOccupied()) { console.warn("Cell is already occupied."); return; }
     if (GameState.uncontainedAnomalies.length === 0) {
         showNotification("Acquisition Report", "No new anomalies detected.");
@@ -451,31 +575,35 @@ function containAnomaly() {
 }
 
 // Cell Functions
-function buyNewCell() {
-    const cellCost = 5000; // We can make this dynamic later
-
-    // 1. Check if the player can afford it
-    if (GameState.resources.budget >= cellCost) {
-        // 2. Deduct the cost
-        GameState.resources.budget -= cellCost;
-
-        // 3. Create a new cell instance and add it to our game state
-        const newId = GameState.cellIdCounter++;
-        const newCell = new Cell(newId);
-        GameState.cells.push(newCell);
-
-        // 4. Create the visual element for the cell on the screen
-        renderNewCell(newCell);
-
-        console.log(`Built Cell #${newId}. Remaining Budget: ${GameState.resources.budget}`);
-    } else {
-        console.log("Not enough budget to build a new cell.");
-        // We can add a visual notification for the player here later
+function findCellById(cellId) {
+    for (const wing of GameState.wings) {
+        const foundCell = wing.cells.find(c => c.id === cellId);
+        if (foundCell) {
+            return foundCell;
+        }
     }
+    return null; // Return null if not found in any wing
 }
 
-function renderNewCell(cell) {
+function buyNewCell() {
+    const wing = GameState.wings.find(w => w.id === GameState.selectedWingId);
+    if (!wing || wing.type !== 'Containment') {
+        showNotification("Construction Blocked", "Select a Containment Wing to build a new cell.");
+        return;
+    }
+    const cellCost = 5000;
+    if (GameState.resources.budget >= cellCost) {
+        GameState.resources.budget -= cellCost;
+        const newCell = new Cell(GameState.cellIdCounter++);
+        wing.cells.push(newCell);
+        renderNewCell(newCell, wing);
+    } else {
+        showNotification("Insufficient Funds", "Cannot afford a new cell.");
+    }
+}
+function renderNewCell(cell, wing) {
     const facilityView = document.getElementById('facility-view');
+    const wingCellsContainer = document.querySelector(`#wing-${wing.id} .wing-cells`);
 
     // Create the main container for the cell and its bar
     const cellWrapper = document.createElement('div');
@@ -507,37 +635,145 @@ function renderNewCell(cell) {
     cell.element = cellElement; // We still reference the clickable part
 
     cellElement.addEventListener('click', handleCellSelection);
-    facilityView.appendChild(cellWrapper);
+    //facilityView.appendChild(cellWrapper); // old wrapper
+    wingCellsContainer.appendChild(cellWrapper);
 }
 
-function makeDiscovery(cell) {
-    const anomaly = cell.anomaly;
+// --- Build Menu Functions ---
+function openBuildMenu() {
+    renderBuildMenu(); // FIX: This line was missing. It draws the buttons.
+    document.getElementById('build-menu-panel').classList.remove('hidden');
+}
 
-    // Find a requirement that is NOT yet revealed
-    const unrevealedReq = anomaly.protocol.requirements.find(
-        req => !anomaly.protocol.revealed.includes(req)
-    );
+function closeBuildMenu() {
+    document.getElementById('build-menu-panel').classList.add('hidden');
+}
 
-    if (unrevealedReq) {
-        // Add it to the revealed list
-        anomaly.protocol.revealed.push(unrevealedReq);
-        console.log(`DISCOVERY in Cell #${cell.id}! New protocol revealed: ${unrevealedReq}`);
+function renderBuildMenu() {
+    const buildList = document.getElementById('build-menu-list');
+    buildList.innerHTML = ''; // Clear old content
 
-        // If the current cell is selected, refresh the panel to show the new info
-        if (cell.id === GameState.selectedCellId) {
-            renderSelectionPanel();
-        }
-    } else {
-        console.log(`All protocols for ${anomaly.name} have been discovered.`);
-        anomaly.researchComplete = true; // <-- ADD THIS LINE
-        // Refresh the panel to show the "completed" state
-        if (cell.id === GameState.selectedCellId) {
-            renderSelectionPanel();
-        }
+    for (const type in WING_DATABASE) {
+        const wingData = WING_DATABASE[type];
+        const wingElement = document.createElement('div');
+        wingElement.classList.add('staff-role'); // Reuse staff-role style
+
+        wingElement.innerHTML = `
+            <div>
+                <h4>${wingData.name}</h4>
+                <p>Constructs a new, specialized facility wing.</p>
+            </div>
+            <button class="build-wing-btn" data-type="${type}">Build ($20000)</button>
+        `;
+        buildList.appendChild(wingElement);
     }
 }
 
-// Anomaly Cell Check
+// Wing Functions
+function buildWing(wingType) {
+    const wingCost = 20000;
+    const wingData = WING_DATABASE[wingType];
+    if (GameState.resources.budget >= wingCost) {
+        GameState.resources.budget -= wingCost;
+        const newWing = {
+            id: GameState.wingIdCounter++,
+            type: wingType,
+            cells: [],
+            subBuildings: [],
+            staff: []
+        };
+        GameState.wings.push(newWing);
+        renderWing(newWing);
+        closeBuildMenu();
+    } else {
+        showNotification("Insufficient Funds", "Cannot afford to build a new wing.");
+    }
+}
+
+function renderWing(wing) {
+    const facilityView = document.getElementById('facility-view');
+    const wingData = WING_DATABASE[wing.type];
+    let wingElement = document.getElementById(`wing-${wing.id}`);
+    if (!wingElement) {
+        wingElement = document.createElement('div');
+        wingElement.classList.add('facility-wing');
+        wingElement.id = `wing-${wing.id}`;
+        facilityView.appendChild(wingElement);
+    }
+
+    let controlsHTML = '';
+    if (wing.type === 'Containment' && wing.id !== 0) {
+        controlsHTML += `<button class="specialize-wing-btn" data-wing-id="${wing.id}" data-type="Medical">Specialize: Medical</button>`;
+        controlsHTML += `<button class="specialize-wing-btn" data-wing-id="${wing.id}" data-type="Security">Specialize: Security</button>`;
+        controlsHTML += `<button class="specialize-wing-btn" data-wing-id="${wing.id}" data-type="Administration">Specialize: Admin</button>`;
+    }
+
+    wingElement.innerHTML = `
+        <div class="wing-header" data-wing-id="${wing.id}">
+            <h3>${wingData.name} #${wing.id}</h3>
+            <div class="wing-controls">${controlsHTML}</div>
+        </div>
+        <div class="wing-cells"></div>`;
+
+    // Re-render any existing cells and sub-buildings
+    wing.cells.forEach(c => renderNewCell(c, wing));
+    wing.subBuildings.forEach(sb => renderSubBuilding(wing, sb.type));
+}
+
+
+function specializeWing(wingId, newType) {
+    const wing = GameState.wings.find(w => w.id === wingId);
+    const specializationCost = 20000;
+
+    if (wing && GameState.resources.budget >= specializationCost) {
+        GameState.resources.budget -= specializationCost;
+        wing.type = newType;
+        showNotification("Wing Specialized", `Wing #${wing.id} is now a ${WING_DATABASE[newType].name}.`);
+
+        // Re-render the entire facility to update headers and controls
+        document.getElementById('facility-view').innerHTML = '';
+        GameState.wings.forEach(w => {
+            renderWing(w);
+            w.cells.forEach(c => renderNewCell(c, w));
+        });
+    }
+}
+
+function buildSubBuilding() {
+    const wing = GameState.wings.find(w => w.id === GameState.selectedWingId);
+    const wingData = WING_DATABASE[wing.type];
+    const cost = 2500;
+    if (wing && GameState.resources.budget >= cost) {
+        GameState.resources.budget -= cost;
+        wing.subBuildings.push({ type: wingData.subBuildingType });
+        renderSubBuilding(wing, wingData.subBuildingType);
+        renderStaffPanel(); // Update capacity display
+    }
+}
+
+function renderSubBuilding(wing, type) {
+    const container = document.querySelector(`#wing-${wing.id} .wing-cells`);
+    const subBuildingEl = document.createElement('div');
+    subBuildingEl.classList.add('sub-building', type.toLowerCase());
+    subBuildingEl.textContent = type.charAt(0);
+    container.appendChild(subBuildingEl);
+}
+function assignSecurityToWing(wingId) {
+    const wing = GameState.wings.find(w => w.id === wingId);
+    const guard = GameState.staff.find(s => s.role === 'Security Guard' && !s.isAssigned);
+
+    if (wing && guard) {
+        guard.isAssigned = true;
+        guard.assignment = `Wing ${wingId}`; // Note where they are assigned
+        wing.staff.push(guard);
+        console.log(`Assigned Guard #${guard.id} to Wing #${wingId}`);
+        renderStaffPool(); // Update the main pool counts
+    } else {
+        showNotification("Assignment Failed", "No available Security Guards to assign.");
+    }
+}
+
+// Anomaly / Selection Cell Check
 function renderCellState(cell) {
     const cellTextElement = cell.element.querySelector('span');
     cell.element.classList.remove('occupied', 'contained', 'breached');
@@ -554,7 +790,7 @@ function renderCellState(cell) {
             }
         }
         iconsHTML += '</div>';
-        
+
         // Use innerHTML to render the icons
         cellTextElement.innerHTML = `${anomaly.id}${iconsHTML}`;
 
@@ -571,113 +807,130 @@ function renderCellState(cell) {
     }
 }
 
-
-function handleCellSelection(event) {
-    const clickedCellId = parseInt(event.currentTarget.dataset.cellId);
-
-    // Update the game state with the new selection
-    GameState.selectedCellId = clickedCellId;
-
-    console.log(`Selected Cell #${GameState.selectedCellId}`);
-
-    // Update the UI to show the new selection
+function handleWingSelection(wingId) {
+    GameState.selectedWingId = wingId;
+    GameState.selectedCellId = null; // Deselect any cell
+    console.log(`Selected Wing #${wingId}`);
     renderSelectionPanel();
-    updateSelectedCellVisuals();
+    updateSelectedVisuals();
+}
 
+function handleCellSelection(cellId) { // It correctly takes an ID now
+    GameState.selectedCellId = cellId;
+    GameState.selectedWingId = null; // Deselect any wing
+    console.log(`Selected Cell #${cellId}`);
 
+    renderSelectionPanel();
+    updateSelectedVisuals();
 }
 
 function renderSelectionPanel() {
     const contentDiv = document.getElementById('selection-content');
-    const selectedId = GameState.selectedCellId;
 
-    if (selectedId === null) {
-        contentDiv.innerHTML = '<p>Select an object in the facility...</p>';
-        return;
+    // --- Check for a selected WING first ---
+    if (GameState.selectedWingId !== null) {
+        const wing = GameState.wings.find(w => w.id === GameState.selectedWingId);
+        if (!wing) return;
+
+        const wingData = WING_DATABASE[wing.type];
+        let buildButtonHTML = '';
+
+        if (wing.type === 'Containment') {
+            buildButtonHTML = '<button id="build-cell-btn">Build Containment Cell ($5000)</button>';
+        } else if (wingData.subBuildingType) {
+            buildButtonHTML = `<button id="build-sub-btn">Build ${wingData.subBuildingType} ($2500)</button>`;
+        }
+
+        contentDiv.innerHTML = `
+            <h4>${wingData.name} #${wing.id}</h4>
+            <p>Contains: ${wing.cells.length} cells, ${wing.subBuildings.length} facilities.</p>
+            <div class="panel-section">
+                ${buildButtonHTML}
+            </div>`;
+        return; // Exit function after rendering wing panel
     }
 
-    const cell = GameState.cells.find(c => c.id === selectedId);
-    if (!cell) return;
+    // --- If no wing is selected, check for a CELL ---
+    if (GameState.selectedCellId !== null) {
+        const cell = findCellById(GameState.selectedCellId);
+        if (!cell) return;
 
-    // --- Base Info Section ---
-    let html = `<h4>Cell #${cell.id}</h4>`;
+        let html = `<h4>Cell #${cell.id}</h4>`;
 
-    // --- BREACH OVERRIDE ---
-    if (cell.isBreached) {
-        html += `
-            <p>Status: <span style="color: red; font-weight: bold;">BREACH</span></p>
-            <hr>
-            <h4 style="color: red;">!!CONTAINMENT BREACH!!</h4>
-            <p>Anomaly: ${cell.anomaly.name}</p>
-            <p>The cell is in lockdown. Immediate action is required.</p>
-            <button id="recontain-btn">Re-contain ($${5000})</button>
-        `;
-    } 
-    // --- OCCUPIED (Normal) ---
-    else if (cell.isOccupied()) {
-        const anomaly = cell.anomaly;
-        const statusText = cell.isContainmentSatisfied() ? 'Contained' : 'Occupied';
-        const statusColor = cell.isContainmentSatisfied() ? '#27ae60' : 'orange';
+        if (cell.isBreached) {
+            html += `
+                <p>Status: <span style="color: red; font-weight: bold;">BREACH</span></p>
+                <hr>
+                <h4 style="color: red;">!!CONTAINMENT BREACH!!</h4>
+                <p>Anomaly: ${cell.anomaly.name}</p>
+                <p>The cell is in lockdown. Immediate action is required.</p>
+                <button id="recontain-btn">Re-contain ($${5000})</button>
+            `;
+        } else if (cell.isOccupied()) {
+            const anomaly = cell.anomaly;
+            const statusText = cell.isContainmentSatisfied() ? 'Contained' : 'Occupied';
+            const statusColor = cell.isContainmentSatisfied() ? '#27ae60' : 'orange';
 
-        html += `
-            <p>Status: <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
-            <p><strong>Object Class:</strong> <span class="danger-${anomaly.dangerLevel.toLowerCase()}">${anomaly.dangerLevel}</span></p>
-            <p><strong>Description:</strong> ${anomaly.description}</p>
-        `;
+            html += `
+                <p>Status: <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
+                <p><strong>Object Class:</strong> <span class="danger-${anomaly.dangerLevel.toLowerCase()}">${anomaly.dangerLevel}</span></p>
+                <p><strong>Description:</strong> ${anomaly.description}</p>
+            `;
 
-        // Triage / Behaviors Section
-        if (anomaly.behaviors && anomaly.behaviors.length > 0) {
-            html += `<div class="panel-section"><h4>Triage - Active Effects</h4><ul class="behavior-list">`;
-            for (const behaviorId of anomaly.behaviors) {
-                const behavior = BEHAVIOR_DATABASE[behaviorId];
-                if (behavior) {
-                    html += `<li class="behavior-item" title="${behavior.description}">${behavior.icon} ${behaviorId.replace('_', ' ')}</li>`;
+            if (anomaly.behaviors && anomaly.behaviors.length > 0) {
+                html += `<div class="panel-section"><h4>Triage - Active Effects</h4><ul class="behavior-list">`;
+                for (const behaviorId of anomaly.behaviors) {
+                    const behavior = BEHAVIOR_DATABASE[behaviorId];
+                    if (behavior) {
+                        html += `<li class="behavior-item" title="${behavior.description}">${behavior.icon} ${behaviorId.replace('_', ' ')}</li>`;
+                    }
                 }
+                html += `</ul></div>`;
             }
-            html += `</ul></div>`;
-        }
 
-        // Staff Section
-        html += `<div class="panel-section"><h4>Staff Assignment</h4>
-            <p>Assigned Researchers: ${cell.assignedStaff.length}</p>
-            <div class="button-group">
-                <button id="assign-researcher-btn">Assign</button>
-                <button id="unassign-researcher-btn">Unassign</button>
-            </div>
-        </div>`;
+            let staffHTML = '<div class="panel-section"><h4>Staff Assignment</h4>';
+            const researchersInCell = cell.assignedStaff.filter(s => s.role === 'Researcher').length;
+            const guardsInCell = cell.assignedStaff.filter(s => s.role === 'Security Guard').length;
+            staffHTML += `<div class="staff-assignment"><span>Researchers: ${researchersInCell}</span><div class="button-group"><button id="assign-researcher-btn">Assign</button><button id="unassign-researcher-btn">Unassign</button></div></div>`;
+            if (GameState.unlockedStaff.includes('Security Guard')) {
+                staffHTML += `<div class="staff-assignment"><span>Security Guards: ${guardsInCell}</span><div class="button-group"><button id="assign-security-btn">Assign</button><button id="unassign-security-btn">Unassign</button></div></div>`;
+            }
+            staffHTML += '</div>';
+            html += staffHTML;
 
-        // Research & Modules Section
-        let researchDisplayHTML = '';
-        if (anomaly.researchComplete) {
-            researchDisplayHTML = '<div class="research-complete-notice">All Research Completed</div>';
-        } else {
-            researchDisplayHTML = `
-                <p><strong>Research Progress:</strong></p>
-                <div class="research-progress-bar"><div class="research-progress-fill" id="research-fill-${cell.id}"></div></div>`;
-        }
-        let modulesHTML = "<h4>Containment Modules</h4><ul class='module-list'>";
-        for (const requirement of anomaly.protocol.requirements) {
-            const isRevealed = anomaly.protocol.revealed.includes(requirement) || anomaly.protocol.requirements.indexOf(requirement) === 0;
-            if (isRevealed) {
-                const moduleData = MODULE_DATABASE[requirement];
-                if (cell.modules[requirement]) {
-                    modulesHTML += `<li class="module-item installed">✓ ${requirement} [INSTALLED]</li>`;
-                } else if (moduleData) {
-                    modulesHTML += `<li class="module-item"><button class="build-module-btn" data-module="${requirement}">${requirement} ($${moduleData.cost})</button></li>`;
-                }
+            let researchDisplayHTML = '';
+            if (anomaly.researchComplete) {
+                researchDisplayHTML = '<div class="research-complete-notice">All Research Completed</div>';
             } else {
-                modulesHTML += `<li class="module-item locked">-- [REDACTED] --</li>`;
+                researchDisplayHTML = `<p><strong>Research Progress:</strong></p><div class="research-progress-bar"><div class="research-progress-fill" id="research-fill-${cell.id}"></div></div>`;
             }
+            let modulesHTML = "<h4>Containment Modules</h4><ul class='module-list'>";
+            for (const requirement of anomaly.protocol.requirements) {
+                const isRevealed = anomaly.protocol.revealed.includes(requirement) || anomaly.protocol.requirements.indexOf(requirement) === 0;
+                if (isRevealed) {
+                    const moduleData = MODULE_DATABASE[requirement];
+                    if (cell.modules[requirement]) {
+                        modulesHTML += `<li class="module-item installed">✓ ${requirement} [INSTALLED]</li>`;
+                    } else if (GameState.unlockedModules.includes(requirement)) {
+                        modulesHTML += `<li class="module-item"><button class="build-module-btn" data-module="${requirement}">${requirement} ($${moduleData.cost})</button></li>`;
+                    } else {
+                        modulesHTML += `<li class="module-item locked">-- ${requirement} <button disabled>[Requires R&D]</button></li>`;
+                    }
+                } else {
+                    modulesHTML += `<li class="module-item locked">-- [REDACTED] --</li>`;
+                }
+            }
+            modulesHTML += "</ul>";
+            html += `<div class="panel-section">${researchDisplayHTML}${modulesHTML}</div>`;
+        } else {
+            html += `<p>Status: <span style="color: green; font-weight: bold;">Nominal</span></p><p>This cell is empty and ready for a new occupant.</p>`;
         }
-        modulesHTML += "</ul>";
-        html += `<div class="panel-section">${researchDisplayHTML}${modulesHTML}</div>`;
-    } 
-    // --- EMPTY CELL ---
-    else {
-        html += `<p>Status: <span style="color: green; font-weight: bold;">Nominal</span></p><p>This cell is empty and ready for a new occupant.</p>`;
+        contentDiv.innerHTML = html;
+        return; // Exit function after rendering cell panel
     }
 
-    contentDiv.innerHTML = html;
+    // --- If nothing is selected ---
+    contentDiv.innerHTML = '<p>Select a Wing or Cell...</p>';
 }
 
 // BREACH
@@ -705,7 +958,7 @@ function triggerContainmentBreach(cell) {
 function recontainAnomaly() {
     const selectedId = GameState.selectedCellId;
     if (selectedId === null) return;
-    const cell = GameState.cells.find(c => c.id === selectedId);
+    const cell = findCellById(selectedId);
 
     const recontainCost = 5000; // Cost to dispatch the response team
     if (cell && cell.isBreached && GameState.resources.budget >= recontainCost) {
@@ -753,16 +1006,14 @@ function updateFacilityStatus() {
     console.log(`Facility status updated to: ${GameState.facilityStatus}`);
 }
 
-function updateSelectedCellVisuals() {
-    // Loop through all cell objects
-    for (const cell of GameState.cells) {
-        if (cell.id === GameState.selectedCellId) {
-            // Add 'selected' class to the correct element
-            cell.element.classList.add('selected');
-        } else {
-            // Remove 'selected' class from all other elements
-            cell.element.classList.remove('selected');
-        }
+function updateSelectedVisuals() {
+    document.querySelectorAll('.containment-cell, .wing-header').forEach(el => el.classList.remove('selected'));
+    if (GameState.selectedCellId !== null) {
+        const cell = findCellById(GameState.selectedCellId);
+        if (cell) cell.element.classList.add('selected');
+    }
+    if (GameState.selectedWingId !== null) {
+        document.querySelector(`#wing-${GameState.selectedWingId} .wing-header`).classList.add('selected');
     }
 }
 // RNG Event logic
@@ -797,7 +1048,7 @@ function update(deltaTime) {
         sanityDrainModifier = 1.5;
     }
 
-    // --- GLOBAL TIMERS ---
+    // --- TIMERS ---
     if (GameState.facilityStatus !== 'LOCKDOWN') {
         GameState.monthTimer -= deltaTime;
         if (GameState.monthTimer <= 0) {
@@ -810,173 +1061,209 @@ function update(deltaTime) {
         GameState.eventTimer = GameState.eventInterval;
     }
 
-    // --- GLOBAL RESOURCE GENERATION / DRAIN ---
-    GameState.resources.redTape += 1 * deltaTime;
+    // --- PASSIVE RESOURCE & STAFF EFFECTS ---
+    const clerkCount = GameState.staff.filter(s => s.role === 'Clerk').length;
+    GameState.resources.redTape += (clerkCount * 0.5) * deltaTime;
+    const therapistCount = GameState.staff.filter(s => s.role === 'Therapist').length;
+    GameState.resources.sanity += (therapistCount * 0.2) * deltaTime;
     GameState.resources.sanity -= (0.1 * sanityDrainModifier) * deltaTime;
-    
+
     // --- PER-CELL LOGIC ---
     const researchSpeed = 10 * researchSpeedModifier;
-    for (const cell of GameState.cells) {
-        if (cell.isOccupied()) {
-            const anomaly = cell.anomaly;
-            const behaviors = anomaly.behaviors || [];
+    GameState.wings.forEach(wing => {
+        const guardsInWing = (wing.staff || []).filter(s => s.role === 'Security Guard').length;
+        const threatReduction = 1 - (guardsInWing * 0.1); // 10% reduction per guard
 
-            // Anomaly Behavior Effects
-            if (behaviors.includes('sanity_drain')) {
-                const drainRate = { 'Safe': 0.05, 'Euclid': 0.1, 'Keter': 0.2 };
-                GameState.resources.sanity -= drainRate[anomaly.dangerLevel] * deltaTime;
-            }
-            if (behaviors.includes('research_hazard') && cell.assignedStaff.length > 0 && !anomaly.researchComplete) {
-                const mishapChance = 0.01 * cell.assignedStaff.length;
-                if (Math.random() < mishapChance * deltaTime) {
-                    GameState.resources.sanity -= 5;
-                    showNotification("Research Incident!", `A mishap studying ${anomaly.name} caused a sanity loss.`);
+        wing.cells.forEach(cell => {
+            if (cell.isOccupied()) {
+                const anomaly = cell.anomaly;
+                const behaviors = anomaly.behaviors || [];
+
+                // Anomaly Behavior Effects
+                if (behaviors.includes('sanity_drain')) {
+                    const drainRate = { 'Safe': 0.05, 'Euclid': 0.1, 'Keter': 0.2 };
+                    GameState.resources.sanity -= drainRate[anomaly.dangerLevel] * deltaTime;
+                }
+                if (behaviors.includes('research_hazard') && cell.assignedStaff.length > 0 && !anomaly.researchComplete) {
+                    const mishapChance = 0.01 * cell.assignedStaff.length;
+                    if (Math.random() < mishapChance * deltaTime) {
+                        GameState.resources.sanity -= 5;
+                        showNotification("Research Incident!", `A mishap studying ${anomaly.name} caused a sanity loss.`);
+                    }
+                }
+
+                // Threat Calculation
+                if (!cell.isContainmentSatisfied() && !cell.isBreached) {
+                    const dangerMultipliers = { 'Safe': 0.5, 'Euclid': 1, 'Keter': 3 };
+                    const baseThreat = 1;
+                    const unsatisfiedProtocols = anomaly.protocol.requirements.filter(req => !cell.modules[req]).length;
+                    const threatMultiplier = behaviors.includes('volatile') ? 2 : 1;
+
+                    // FIXED: Changed 'const' to 'let' to allow modification
+                    let threatPerSecond = baseThreat * unsatisfiedProtocols * dangerMultipliers[anomaly.dangerLevel] * threatMultiplier;
+
+                    threatPerSecond *= threatReduction; // Apply security guard reduction
+
+                    cell.threatLevel += threatPerSecond * deltaTime;
+
+                    if (cell.threatLevel >= 100) {
+                        cell.threatLevel = 100;
+                        triggerContainmentBreach(cell);
+                    }
+                } else {
+                    cell.threatLevel -= 2 * deltaTime;
+                    if (cell.threatLevel < 0) cell.threatLevel = 0;
+                }
+
+                // Research & Ectoplasm
+                if (cell.assignedStaff.length > 0 && !anomaly.researchComplete) {
+                    cell.researchProgress += (researchSpeed * cell.assignedStaff.length) * deltaTime;
+
+                    const ectoMultipliers = { 'Safe': 0.1, 'Euclid': 0.25, 'Keter': 0.5 };
+                    const ectoPerSecond = cell.assignedStaff.length * ectoMultipliers[anomaly.dangerLevel];
+                    GameState.resources.ectoplasm += ectoPerSecond * deltaTime;
+
+                    if (cell.researchProgress >= 100) {
+                        cell.researchProgress = 0;
+                        makeDiscovery(cell);
+                    }
                 }
             }
-
-            // Threat Calculation
-            if (!cell.isContainmentSatisfied() && !cell.isBreached) {
-                const dangerMultipliers = { 'Safe': 0.5, 'Euclid': 1, 'Keter': 3 };
-                const baseThreat = 1;
-                const unsatisfiedProtocols = anomaly.protocol.requirements.filter(req => !cell.modules[req]).length;
-                const threatMultiplier = behaviors.includes('volatile') ? 2 : 1;
-                const threatPerSecond = baseThreat * unsatisfiedProtocols * dangerMultipliers[anomaly.dangerLevel] * threatMultiplier;
-                
-                cell.threatLevel += threatPerSecond * deltaTime;
-
-                if (cell.threatLevel >= 100) {
-                    cell.threatLevel = 100;
-                    triggerContainmentBreach(cell);
-                }
-            } else {
-                cell.threatLevel -= 2 * deltaTime;
-                if (cell.threatLevel < 0) cell.threatLevel = 0;
-            }
-
-            // Research & Ectoplasm
-            if (cell.assignedStaff.length > 0 && !anomaly.researchComplete) {
-                cell.researchProgress += (researchSpeed * cell.assignedStaff.length) * deltaTime;
-                
-                const ectoMultipliers = { 'Safe': 0.1, 'Euclid': 0.25, 'Keter': 0.5 };
-                const ectoPerSecond = cell.assignedStaff.length * ectoMultipliers[anomaly.dangerLevel];
-                GameState.resources.ectoplasm += ectoPerSecond * deltaTime;
-
-                if (cell.researchProgress >= 100) {
-                    cell.researchProgress = 0;
-                    makeDiscovery(cell);
-                }
-            }
-        }
-    }
+        });
+    });
     checkGameOver();
 }
 
-    // Render game state to the screen
-    function render() {
-        // This is where we'll update the HTML to show the current game state.
-        // For now, let's just display the red tape.
-        document.getElementById('res-budget').textContent = `💵 Budget: $${Math.floor(GameState.resources.budget)}`;
-        document.getElementById('res-tape').textContent = `📄 Red Tape: ${Math.floor(GameState.resources.redTape)}`;
-        document.getElementById('res-sanity').textContent = `🧠 Sanity: ${Math.floor(GameState.resources.sanity)}`;
-        document.getElementById('res-ecto').textContent = `👻 Ectoplasm: ${Math.floor(GameState.resources.ectoplasm)}`;
 
-        // --- Progress Bar Update ---
-        if (GameState.selectedCellId !== null) {
-            const cell = GameState.cells.find(c => c.id === GameState.selectedCellId);
-            // Find the fill element, but only if a cell is actually selected and occupied
-            const fillElement = document.getElementById(`research-fill-${GameState.selectedCellId}`);
-            if (cell && cell.isOccupied() && fillElement) {
-                const progressPercent = (cell.researchProgress / 100) * 100;
-                fillElement.style.width = `${progressPercent}%`;
-            }
-        }
-        // --- Facility Status Banner Update ---
-        const statusBanner = document.getElementById('facility-status-banner');
-        if (statusBanner) {
-            statusBanner.textContent = `STATUS: ${GameState.facilityStatus}`;
-            if (GameState.facilityStatus === 'NOMINAL') {
-                statusBanner.style.backgroundColor = '#27ae60'; // Green
-                statusBanner.style.color = 'white';
-            } else if (GameState.facilityStatus === 'ALERT') {
-                statusBanner.style.backgroundColor = '#f39c12'; // Yellow
-                statusBanner.style.color = 'black';
-            } else if (GameState.facilityStatus === 'LOCKDOWN') {
-                statusBanner.style.backgroundColor = '#e74c3c'; // Red
-                statusBanner.style.color = 'white';
-            }
-        }
+// Render game state to the screen
+function render() {
+    // This is where we'll update the HTML to show the current game state.
+    // For now, let's just display the red tape.
+    document.getElementById('res-budget').textContent = `💵 Budget: $${Math.floor(GameState.resources.budget)}`;
+    document.getElementById('res-tape').textContent = `📄 Red Tape: ${Math.floor(GameState.resources.redTape)}`;
+    document.getElementById('res-sanity').textContent = `🧠 Sanity: ${Math.floor(GameState.resources.sanity)}`;
+    document.getElementById('res-ecto').textContent = `👻 Ectoplasm: ${Math.floor(GameState.resources.ectoplasm)}`;
 
-        // --- Timer Display Update ---
-        const timerDisplay = document.getElementById('month-timer-display');
-        if (timerDisplay) {
-            // Math.ceil ensures we get a clean countdown from 60 to 1
-            const secondsLeft = Math.ceil(GameState.monthTimer);
-            timerDisplay.textContent = `Time until Stipend: ${secondsLeft}s`;
+    // --- Progress Bar Update ---
+    if (GameState.selectedCellId !== null) {
+        const cell = findCellById(GameState.selectedCellId);
+        // Find the fill element, but only if a cell is actually selected and occupied
+        const fillElement = document.getElementById(`research-fill-${GameState.selectedCellId}`);
+        if (cell && cell.isOccupied() && fillElement) {
+            const progressPercent = (cell.researchProgress / 100) * 100;
+            fillElement.style.width = `${progressPercent}%`;
         }
+    }
+    // --- Facility Status Banner Update ---
+    const statusBanner = document.getElementById('facility-status-banner');
+    if (statusBanner) {
+        statusBanner.textContent = `STATUS: ${GameState.facilityStatus}`;
+        if (GameState.facilityStatus === 'NOMINAL') {
+            statusBanner.style.backgroundColor = '#27ae60'; // Green
+            statusBanner.style.color = 'white';
+        } else if (GameState.facilityStatus === 'ALERT') {
+            statusBanner.style.backgroundColor = '#f39c12'; // Yellow
+            statusBanner.style.color = 'black';
+        } else if (GameState.facilityStatus === 'LOCKDOWN') {
+            statusBanner.style.backgroundColor = '#e74c3c'; // Red
+            statusBanner.style.color = 'white';
+        }
+    }
 
-        // --- THREAT BAR AND PROGRESS BAR UPDATES ---
-        for (const cell of GameState.cells) {
-            // Update threat bar for every cell
+    // --- Timer Display Update ---
+    const timerDisplay = document.getElementById('month-timer-display');
+    if (timerDisplay) {
+        // Math.ceil ensures we get a clean countdown from 60 to 1
+        const secondsLeft = Math.ceil(GameState.monthTimer);
+        timerDisplay.textContent = `Time until Stipend: ${secondsLeft}s`;
+    }
+
+    // --- THREAT BAR AND PROGRESS BAR UPDATES ---
+    GameState.wings.forEach(wing => {
+        wing.cells.forEach(cell => {
             const threatFill = document.getElementById(`threat-fill-${cell.id}`);
             if (threatFill) {
                 threatFill.style.width = `${cell.threatLevel}%`;
             }
+        });
+    });
+}
+
+
+// --- Initialization function ---
+function init() {
+    console.log("Initializing Department of Otherworldly Affairs...");
+
+    // Render the initial facility state
+    GameState.wings.forEach(wing => {
+        renderWing(wing);
+        wing.cells.forEach(c => renderNewCell(c, wing));
+    });
+    renderStaffPool();
+
+    // --- EVENT LISTENERS ---
+
+    // 1. Main control buttons that open panels
+    document.getElementById('open-build-menu-btn').addEventListener('click', openBuildMenu);
+    document.getElementById('open-staff-panel-btn').addEventListener('click', openStaffPanel);
+    document.getElementById('open-tech-tree-btn').addEventListener('click', openTechTree);
+    document.getElementById('contain-anomaly-btn').addEventListener('click', containAnomaly);
+
+    // 2. Delegated listener for the Build Menu pop-up
+    const buildMenuPanel = document.getElementById('build-menu-panel');
+    buildMenuPanel.addEventListener('click', (event) => {
+        if (event.target.classList.contains('build-wing-btn')) {
+            buildWing(event.target.dataset.type);
+        } else if (event.target.id === 'close-build-menu-btn') {
+            closeBuildMenu();
         }
-    }
+    });
 
-    // Initialization function that runs when the page loads
-    function init() {
-        console.log("Initializing Department of Otherworldly Affairs...");
+    // 3. Delegated listener for the side panel's contextual buttons
+    const uiPanel = document.getElementById('ui-panel');
+    uiPanel.addEventListener('click', (event) => {
+        const target = event.target;
+        const selectedCell = findCellById(GameState.selectedCellId);
 
-        const buildCellButton = document.getElementById('build-cell-btn');
-        buildCellButton.addEventListener('click', buyNewCell);
+        if (target.id === 'build-cell-btn') buyNewCell();
+        if (target.id === 'build-sub-btn') buildSubBuilding();
+        if (target.id === 'assign-researcher-btn') assignStaffToCell(selectedCell, 'Researcher');
+        if (target.id === 'unassign-researcher-btn') unassignStaffFromCell(selectedCell, 'Researcher');
+        if (target.id === 'assign-security-btn') assignStaffToCell(selectedCell, 'Security Guard');
+        if (target.id === 'unassign-security-btn') unassignStaffFromCell(selectedCell, 'Security Guard');
+        if (target.classList.contains('build-module-btn')) buildModule(target.dataset.module);
+        if (target.id === 'recontain-btn') recontainAnomaly();
+    });
 
-        const containAnomalyButton = document.getElementById('contain-anomaly-btn');
-        containAnomalyButton.addEventListener('click', containAnomaly);
+    // 4. Delegated listener for the main facility view (selecting wings/cells)
+    const facilityView = document.getElementById('facility-view');
+    facilityView.addEventListener('click', (event) => {
+        const wingHeader = event.target.closest('.wing-header');
+        const cellElement = event.target.closest('.containment-cell');
 
-        const hireResearcherButton = document.getElementById('hire-researcher-btn');
-        hireResearcherButton.addEventListener('click', hireResearcher);
+        if (wingHeader) {
+            handleWingSelection(parseInt(wingHeader.dataset.wingId));
+        } else if (cellElement) {
+            handleCellSelection(parseInt(cellElement.dataset.cellId));
+        }
+    });
 
-        const uiPanel = document.getElementById('ui-panel');
-        uiPanel.addEventListener('click', (event) => {
-            if (event.target.id === 'assign-researcher-btn') {
-                assignResearcher();
-            } else if (event.target.id === 'unassign-researcher-btn') {
-                unassignResearcher();
-            }
-            // ADD THIS 'ELSE IF' BLOCK
-            else if (event.target.classList.contains('build-module-btn')) {
-                const moduleName = event.target.dataset.module;
-                buildModule(moduleName);
-            } else if (event.target.id === 'recontain-btn') {
-                recontainAnomaly();
-            }
-        });
+    // 5. Delegated listener for the Staff pop-up
+    const staffPanel = document.getElementById('staff-panel');
+    staffPanel.addEventListener('click', (event) => {
+        if (event.target.id === 'close-staff-panel-btn') closeStaffPanel();
+        else if (event.target.classList.contains('hire-staff-btn')) hireStaff(event.target.dataset.role);
+    });
 
+    // 6. Delegated listener for the Tech Tree pop-up
+    const techPanel = document.getElementById('tech-tree-panel');
+    techPanel.addEventListener('click', (event) => {
+        if (event.target.id === 'close-tech-tree-btn') closeTechTree();
+        else if (event.target.classList.contains('purchase-tech-btn')) purchaseTech(event.target.dataset.techId);
+    });
 
-        // Tech tree stuff 
-        const openBtn = document.getElementById('open-tech-tree-btn');
-        openBtn.addEventListener('click', openTechTree);
+    // Start the game loop
+    requestAnimationFrame(gameLoop);
+}
 
-        const techPanel = document.getElementById('tech-tree-panel');
-        techPanel.addEventListener('click', (event) => {
-            // Check if the close button was clicked
-            if (event.target.id === 'close-tech-tree-btn') {
-                closeTechTree();
-                console.error('Closing button');
-            }
-            // Check if a purchase button was clicked
-            else if (event.target.classList.contains('purchase-tech-btn')) {
-                purchaseTech(event.target.dataset.techId);
-            }
-        });
-
-        renderStaffPool(); // Call it once at the start to show initial state
-
-        // Start the game loop
-        requestAnimationFrame(gameLoop);
-    }
-
-    // Wait for the DOM to be fully loaded before starting the game
-    window.addEventListener('DOMContentLoaded', init);
-
+window.addEventListener('DOMContentLoaded', init);

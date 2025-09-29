@@ -19,38 +19,51 @@
             <div id="res-sanity" class="resource-item"></div>
             <div id="res-ecto" class="resource-item"></div>
         </div>
-        
-        
     </header>
+
     <div id="tech-tree-panel" class="hidden">
         <div id="tech-tree-content">
             <h2>Research & Development</h2>
-            <div id="tech-tree-grid">
-            </div>
+            <div id="tech-tree-grid"></div>
             <button id="close-tech-tree-btn">Close</button>
         </div>
     </div>
 
+    <div id="staff-panel" class="hidden">
+        <div id="staff-content">
+            <h2>Staff Recruitment</h2>
+            <div id="staff-list"></div>
+            <button id="close-staff-panel-btn">Close</button>
+        </div>
+    </div>
+    
+    <div id="build-menu-panel" class="hidden">
+        <div id="build-menu-content">
+            <h2>Construction</h2>
+            <div id="build-menu-list"></div>
+            <button id="close-build-menu-btn">Close</button>
+        </div>
+    </div>
+
     <div id="notification" class="hidden"></div>
+    
     <main id="game-container">
         <div id="facility-view">
-            <h2>Containment Wing</h2>
-        </div>
+            </div>
 
         <aside id="ui-panel">
             <div id="month-timer-display"></div>
             <div id="controls">
+                <button id="open-build-menu-btn">Build Menu</button>
                 <button id="open-tech-tree-btn">R&D Tech Tree</button>
-                <button id="build-cell-btn">Build Containment Cell ($5000)</button>
-                <button id="hire-researcher-btn" style="margin-top: 5px;">Hire Researcher ($1000)</button>
-                <div id="staff-pool">
-                </div>
+                <button id="open-staff-panel-btn">Recruitment</button>
+                <div id="staff-pool"></div>
                 <button id="contain-anomaly-btn" style="margin-top: 10px;">Contain Anomaly (Test)</button>
             </div>
             <hr>
             <h3>Selection Details</h3>
             <div id="selection-content">
-                <p>Select an object in the facility...</p>
+                <p>Select a Wing or Cell...</p>
             </div>
         </aside>
     </main>

@@ -19,6 +19,6 @@ class Anomaly {
         this.behaviors = behaviors || [];
     }
 
-    // A helper method to get the protocol text for the UI
+    
     
 }
