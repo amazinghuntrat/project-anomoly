@@ -687,6 +687,7 @@ function buildWing(wingType) {
         closeBuildMenu();
     } else {
         showNotification("Insufficient Funds", "Cannot afford to build a new wing.");
+        closeBuildMenu()
     }
 }
 

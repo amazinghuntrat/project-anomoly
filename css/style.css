@@ -736,6 +736,7 @@ body {
 .module-item button {
     font-size: 12px;
     padding: 3px 6px;
+    color: #5087ff;
 }
 .staff-assignment {
     display: flex;
