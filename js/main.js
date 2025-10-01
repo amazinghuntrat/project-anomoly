@@ -5,8 +5,8 @@
 // A global object to hold the game's state
 // --- GLOBAL GAME STATE ---
 const GameState = {
-    resources: { redTape: 0, budget: 10000, sanity: 100, ectoplasm: 0 },
-    staff: [],
+    resources: { redTape: 0, budget: 25000, sanity: 100, ectoplasm: 0 }, // updated starting budget
+    staff: ['Security Guard', 'Researcher', 'Clerk'],
     lastUpdate: Date.now(),
     cellIdCounter: 0,
     selectedCellId: null,
@@ -19,12 +19,17 @@ const GameState = {
     activeBreaches: 0,
     eventInterval: 90,
     eventTimer: 90,
-    unlockedTechs: [],
+    unlockedTechs: ['t1_security'],
     unlockedStaff: ['Researcher'],
-    unlockedModules: ['Soundproofed Walls', 'Remote Viewing Only', 'Constant Illumination', 'Reinforced Walls'], wings: [{ id: 0, type: 'Containment', cells: [], subBuildings: [] }],
+    unlockedModules: ['Soundproofed Walls', 'Remote Viewing Only', 'Constant Illumination', 'Reinforced Walls'],
+    wings: [{
+        id: 0, type: 'Containment',
+        cells: [],
+        subBuildings: [],
+    }],
     wingIdCounter: 1,
 };
-const Debug = { addMoney: (amount) => { GameState.resources.budget += amount; console.log(`Added $${amount}. New Budget: $${GameState.resources.budget}`) }, addEcto: (amount) => { GameState.resources.ectoplasm += amount; console.log(`Added ${amount} Ectoplasm. New Total: ${GameState.resources.ectoplasm}`) }, setSanity: (value) => { GameState.resources.sanity = value; console.log(`Sanity set to ${value}.`) }, triggerBreach: (cellId) => { const cell = findCellById(cellId); if (cell && cell.isOccupied()) { triggerContainmentBreach(cell); console.log(`Forcing breach on Cell #${cellId}.`) } else { console.error(`Cell #${cellId} not found or is empty.`) } }, finishResearch: (cellId) => { const cell = findCellById(cellId); if (cell && cell.isOccupied()) { cell.anomaly.researchComplete = true; renderSelectionPanel(); console.log(`Research for anomaly in Cell #${cellId} completed.`) } else { console.error(`Cell #${cellId} not found or is empty.`) } }, fastForward: (seconds) => { GameState.monthTimer -= seconds; console.log(`Advanced time by ${seconds} seconds.`) }, triggerEvent: (eventName) => { const event = EVENT_DATABASE.find(e => e.name === eventName); if (event) { event.effect(); showNotification(event.name, event.description); console.log(`Triggered event: ${eventName}`) } else { console.error(`Event "${eventName}" not found.`) } }, unlockTech: (techId) => { const tech = TECH_TREE_DATABASE[techId]; if (tech && !GameState.unlockedTechs.includes(techId)) { GameState.unlockedTechs.push(techId); tech.effect(); console.log(`Unlocked Tech: ${tech.name}`) } else { console.error(`Tech "${techId}" not found or already unlocked.`) } }, help: () => { console.log(`--- Debug Commands ---\nDebug.addMoney(amount)\nDebug.addEcto(amount)\nDebug.setSanity(value)\nDebug.triggerBreach(cellId)\nDebug.finishResearch(cellId)\nDebug.fastForward(seconds)\nDebug.triggerEvent("Event Name")\nDebug.unlockTech('techId')`) } };
+
 
 
 const ANOMALY_DATABASE = {
@@ -169,16 +174,16 @@ const TECH_TREE_DATABASE = {
         't1_security': { name: 'Site Security Protocols', description: 'Unlocks the Security Guard role.', cost: 40, prerequisites: [], effect: () => { GameState.unlockedStaff.push('Security Guard'); } },
     },
     "Containment Solutions": {
-        't1_materials': { name: 'Advanced Materials', description: 'Unlocks Lead-Lined Walls for construction.', cost: 20, prerequisites: [], effect: () => { GameState.unlockedModules.push('Lead-Lined Walls'); }},
-        't1_hvac': { name: 'HVAC Engineering', description: 'Unlocks Humidity Regulators and Vacuum Pumps.', cost: 25, prerequisites: [], effect: () => { GameState.unlockedModules.push('Humidity Regulators', 'Vacuum Pump'); }},
-        't2_logistics': { name: 'Automated Systems', description: 'Unlocks the Automated Sterilization System.', cost: 40, prerequisites: ['t1_bureaucracy'], effect: () => { GameState.unlockedModules.push('Automated Sterilization System'); }},
-        't2_cryonics': { name: 'Cryo-Containment', description: 'Unlocks the Cryo Unit and Thermal Generators.', cost: 50, prerequisites: ['t1_hvac'], effect: () => { GameState.unlockedModules.push('Cryo Unit', 'Thermal Generators'); }},
+        't1_materials': { name: 'Advanced Materials', description: 'Unlocks Lead-Lined Walls for construction.', cost: 20, prerequisites: [], effect: () => { GameState.unlockedModules.push('Lead-Lined Walls'); } },
+        't1_hvac': { name: 'HVAC Engineering', description: 'Unlocks Humidity Regulators and Vacuum Pumps.', cost: 25, prerequisites: [], effect: () => { GameState.unlockedModules.push('Humidity Regulators', 'Vacuum Pump'); } },
+        't2_logistics': { name: 'Automated Systems', description: 'Unlocks the Automated Sterilization System.', cost: 40, prerequisites: ['t1_bureaucracy'], effect: () => { GameState.unlockedModules.push('Automated Sterilization System'); } },
+        't2_cryonics': { name: 'Cryo-Containment', description: 'Unlocks the Cryo Unit and Thermal Generators.', cost: 50, prerequisites: ['t1_hvac'], effect: () => { GameState.unlockedModules.push('Cryo Unit', 'Thermal Generators'); } },
     },
     "Advanced & Esoteric Research": {
-        't1_memetics': { name: 'Applied Memetics', description: 'Unlocks the Mnemonic Dampener module.', cost: 30, prerequisites: [], effect: () => { GameState.unlockedModules.push('Mnemonic Dampener'); }},
-        't2_temporal': { name: 'Temporal Mechanics', description: 'Unlocks the Scranton Reality Anchor.', cost: 100, prerequisites: ['t1_memetics'], effect: () => { GameState.unlockedModules.push('Scranton Reality Anchor'); }},
-        't3_em_shielding': { name: 'EM Shielding', description: 'Unlocks the Faraday Cage.', cost: 80, prerequisites: ['t2_logistics'], effect: () => { GameState.unlockedModules.push('Faraday Cage'); }},
-        't3_sensory': { name: 'Sensory Synthesis', description: 'Unlocks advanced sensory modules.', cost: 75, prerequisites: ['t2_cryonics'], effect: () => { GameState.unlockedModules.push('Olfactory Emitter', 'White Noise Generator', 'Sensory Deprivation Chamber'); }},
+        't1_memetics': { name: 'Applied Memetics', description: 'Unlocks the Mnemonic Dampener module.', cost: 30, prerequisites: [], effect: () => { GameState.unlockedModules.push('Mnemonic Dampener'); } },
+        't2_temporal': { name: 'Temporal Mechanics', description: 'Unlocks the Scranton Reality Anchor.', cost: 100, prerequisites: ['t1_memetics'], effect: () => { GameState.unlockedModules.push('Scranton Reality Anchor'); } },
+        't3_em_shielding': { name: 'EM Shielding', description: 'Unlocks the Faraday Cage.', cost: 80, prerequisites: ['t2_logistics'], effect: () => { GameState.unlockedModules.push('Faraday Cage'); } },
+        't3_sensory': { name: 'Sensory Synthesis', description: 'Unlocks advanced sensory modules.', cost: 75, prerequisites: ['t2_cryonics'], effect: () => { GameState.unlockedModules.push('Olfactory Emitter', 'White Noise Generator', 'Sensory Deprivation Chamber'); } },
     }
 };
 
@@ -213,7 +218,7 @@ function endOfMonthCycle() {
     console.log(`Paid staff salaries: $${totalSalaries}`);
 
     // 2. Receive the monthly stipend
-    const baseStipend = 10000; // This can get more complex later
+    const baseStipend = 20000; // This can get more complex later, Adjusted for balance
     GameState.resources.budget += baseStipend;
     console.log(`Received monthly stipend: $${baseStipend}`);
 
@@ -262,8 +267,8 @@ function renderTechTree() {
                 techElement.classList.add('locked');
                 const prereqNames = tech.prerequisites.map(pId => {
                     // Find the tech name from its ID for a more readable message
-                    for(const cat in TECH_TREE_DATABASE) {
-                        if(TECH_TREE_DATABASE[cat][pId]) return TECH_TREE_DATABASE[cat][pId].name;
+                    for (const cat in TECH_TREE_DATABASE) {
+                        if (TECH_TREE_DATABASE[cat][pId]) return TECH_TREE_DATABASE[cat][pId].name;
                     }
                 }).join(', ');
                 buttonHTML = `<p>Requires: ${prereqNames}</p>`;
@@ -300,10 +305,10 @@ function purchaseTech(techId) {
 
         console.log(`Researched: ${tech.name}`);
         renderTechTree();
-        closeTechTree();    
+        closeTechTree();
     } else {
         showNotification("Insufficient Ectoplasm", "Cannot research this technology yet.");
-        closeTechTree();    
+        closeTechTree();
     }
 }
 
@@ -945,7 +950,7 @@ function triggerContainmentBreach(cell) {
     cell.isBreached = true;
 
     // 1. Immediate Sanity Loss
-    const sanityLoss = 30; // A significant hit
+    const sanityLoss = 10; // Updated for balance!
     GameState.resources.sanity -= sanityLoss;
 
     // 2. Stop all research in the cell (if any was happening)
@@ -1068,7 +1073,9 @@ function update(deltaTime) {
     const therapistCount = GameState.staff.filter(s => s.role === 'Therapist').length;
     GameState.resources.sanity += (therapistCount * 0.2) * deltaTime;
     GameState.resources.sanity -= (0.1 * sanityDrainModifier) * deltaTime;
-
+    if (GameState.resources.sanity > 100) {
+        GameState.resources.sanity = 100; // Cap sanity at 100
+    }
     // --- PER-CELL LOGIC ---
     const researchSpeed = 10 * researchSpeedModifier;
     GameState.wings.forEach(wing => {
@@ -1082,7 +1089,7 @@ function update(deltaTime) {
 
                 // Anomaly Behavior Effects
                 if (behaviors.includes('sanity_drain')) {
-                    const drainRate = { 'Safe': 0.05, 'Euclid': 0.1, 'Keter': 0.2 };
+                    const drainRate = { 'Safe': 0.03, 'Euclid': 0.07, 'Keter': 0.15 };
                     GameState.resources.sanity -= drainRate[anomaly.dangerLevel] * deltaTime;
                 }
                 if (behaviors.includes('research_hazard') && cell.assignedStaff.length > 0 && !anomaly.researchComplete) {

@@ -33,7 +33,7 @@ class Cell {
     }
 
     const requirements = this.anomaly.protocol.requirements;
-    // The .every() method checks if ALL items in an array pass a test.
+  
     // Here, we check if every required module is present in this.modules.
     return requirements.every(req => this.modules[req]);
 }
