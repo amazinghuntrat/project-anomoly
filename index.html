@@ -45,6 +45,15 @@
         </div>
     </div>
 
+    <div id="acquisitions-panel" class="hidden">
+        <div id="acquisitions-content">
+            <h2>Anomaly Acquisitions</h2>
+            <div id="investigation-list">
+            </div>
+            <button id="close-acquisitions-btn">Close</button>
+        </div>
+    </div>
+
     <div id="game-over-panel" class="hidden">
         <div id="game-over-content">
             <h2>SESSION TERMINATED</h2>
@@ -54,6 +63,10 @@
     </div>
 
     <div id="notification" class="hidden"></div>
+    <div id="inline-notification" class="inline-notification hidden">
+        <h4>Notification Title</h4>
+        <p>Notification text goes here.</p>
+    </div>
 
     <main id="game-container">
         <div id="facility-view">
@@ -62,11 +75,12 @@
         <aside id="ui-panel">
             <div id="month-timer-display"></div>
             <div id="controls">
-                <button id="open-build-menu-btn">Build Menu</button>
+                <button id="open-build-menu-btn">Wing Build Menu</button>
                 <button id="open-tech-tree-btn">R&D Tech Tree</button>
                 <button id="open-staff-panel-btn">Recruitment</button>
                 <div id="staff-pool"></div>
-                <button id="contain-anomaly-btn" style="margin-top: 10px;">Contain Anomaly (Test)</button>
+                <button id="open-acquisitions-btn">Acquisitions</button>
+                <button id="place-anomaly-btn" class="hidden">Place Anomaly</button>
             </div>
             <hr>
             <h3>Selection Details</h3>
@@ -75,6 +89,12 @@
             </div>
         </aside>
     </main>
+
+    <footer>
+        <button id="save-btn" class="hidden">Save Game</button>
+        <button id="load-btn" class="hidden">Load Game</button>
+        <button id="wipe-btn" class="hidden">Wipe Save</button>
+    </footer>
 
     <script src="js/classes/Anomaly.js"></script>
     <script src="js/classes/Cell.js"></script>
