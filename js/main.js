@@ -6,7 +6,7 @@
 // --- GLOBAL GAME STATE ---
 const GameState = {
     resources: { redTape: 0, budget: 25000, sanity: 100, ectoplasm: 0 }, // updated starting budget
-    staff: ['Security Guard', 'Researcher', 'Clerk'],
+    staff: [],
     lastUpdate: Date.now(),
     cellIdCounter: 0,
     selectedCellId: null,
@@ -28,9 +28,29 @@ const GameState = {
         subBuildings: [],
     }],
     wingIdCounter: 1,
+    animationFrameId: null
 };
 
-
+const Debug = {
+    money: (amount) => {
+        GameState.resources.budget += amount;
+        console.log(`Budget is now: $${GameState.resources.budget}`);
+    },
+    ecto: (amount) => {
+        GameState.resources.ectoplasm += amount;
+        console.log(`Ectoplasm is now: ${GameState.resources.ectoplasm}`);
+    },
+    sanity: (value) => {
+        GameState.resources.sanity = value;
+        console.log(`Sanity is now: ${GameState.resources.sanity}`);
+    },
+    help: () => {
+        console.log(`Available Commands:
+Debug.money(amount)
+Debug.ecto(amount)
+Debug.sanity(value)`);
+    }
+};
 
 const ANOMALY_DATABASE = {
     'AM-001': {
@@ -203,7 +223,7 @@ function gameLoop() {
     render();
 
     GameState.lastUpdate = now;
-    requestAnimationFrame(gameLoop); // This keeps the loop going
+    GameState.animationFrameId = requestAnimationFrame(gameLoop); // Game loop operation
 }
 
 function endOfMonthCycle() {
@@ -212,7 +232,7 @@ function endOfMonthCycle() {
     // 1. Calculate and pay staff salaries
     let totalSalaries = 0;
     for (const staff of GameState.staff) {
-        totalSalaries += staff.salary;
+        totalSalaries += staff.salary || 0;
     }
     GameState.resources.budget -= totalSalaries;
     console.log(`Paid staff salaries: $${totalSalaries}`);
@@ -984,19 +1004,24 @@ function recontainAnomaly() {
 }
 
 function checkGameOver() {
-    let gameOverMessage = '';
-    if (GameState.resources.sanity <= 0) {
+    let gameOverMessage = null;
+    if (GameState.resources.sanity <= -10) {
         gameOverMessage = "Catastrophic psychological collapse. The facility has been overrun by hysteria. Your tenure as Director is over.";
     }
-    if (GameState.resources.budget < -10000) {
+    if (GameState.resources.budget < -15000) {
         gameOverMessage = "Funding Revoked. The agency has lost faith in your financial management. The project is terminated.";
     }
 
     if (gameOverMessage) {
-        // Stop the game loop
-        cancelAnimationFrame(gameLoop);
-        // Show a game over message
-        alert(`GAME OVER\n\n${gameOverMessage}\n\nPlease refresh the page to start again.`);
+        // Stop the game loop immediately
+        cancelAnimationFrame(GameState.animationFrameId);
+
+        const panel = document.getElementById('game-over-panel');
+        const reasonText = document.getElementById('game-over-reason');
+
+        //  Populate and display panel
+        reasonText.textContent = gameOverMessage;
+        panel.classList.remove('hidden');
     }
 }
 
